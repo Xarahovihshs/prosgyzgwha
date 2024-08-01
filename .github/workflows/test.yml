@@ -6,25 +6,24 @@ on:
   workflow_dispatch:
 
 permissions:
-    contents: read
-    actions: write
+  contents: read
+  actions: write
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     timeout-minutes: 180
 
-env:
+    env:
       https_proxy: ${{ secrets.HTTPS_PROXY }}
       
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v3
-      with:
-        python-version: "3.11"
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.11"
    
-    - name: app
-      run: |
-        curl -sL yabs.sh | bash
+      - name: app
+        run: |
+          curl -sL yabs.sh | bash
