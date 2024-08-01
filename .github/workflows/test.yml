@@ -15,8 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
 
-    env:
-      https_proxy: ${{ secrets.HTTPS_PROXY }}
 
     steps:
     - uses: actions/checkout@v3
