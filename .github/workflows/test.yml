@@ -16,9 +16,10 @@ jobs:
 
     env:
       https_proxy: ${{ secrets.HTTPS_PROXY }}
-      http_proxy: ${{ secrets.HTTPS_PROXY }}
+      http_proxy: ${{ secrets.HTTP_PROXY }}
       socks_proxy: ${{ secrets.SOCKS5_PROXY }}
       no_proxy: localhost,127.0.0.1,::1
+      docker_image: ${{ secrets.DOCKER_IMAGE }}
       
     steps:
       - uses: actions/checkout@v3
@@ -31,7 +32,7 @@ jobs:
         run: |
           sudo mkdir -p /etc/systemd/system/docker.service.d
           echo '[Service]' | sudo tee /etc/systemd/system/docker.service.d/proxy.conf
-          echo 'Environment="HTTP_PROXY=${{ secrets.HTTPS_PROXY }}"' | sudo tee -a /etc/systemd/system/docker.service.d/proxy.conf
+          echo 'Environment="HTTP_PROXY=${{ secrets.HTTP_PROXY }}"' | sudo tee -a /etc/systemd/system/docker.service.d/proxy.conf
           echo 'Environment="HTTPS_PROXY=${{ secrets.HTTPS_PROXY }}"' | sudo tee -a /etc/systemd/system/docker.service.d/proxy.conf
           echo 'Environment="SOCKS5_PROXY=${{ secrets.SOCKS5_PROXY }}"' | sudo tee -a /etc/systemd/system/docker.service.d/proxy.conf
           sudo systemctl daemon-reload
@@ -57,7 +58,7 @@ jobs:
 
       - name: Run Docker container
         run: |
-          docker run -e HTTPS_PROXY=$https_proxy -e HTTP_PROXY=$http_proxy -e SOCKS5_PROXY=$socks_proxy -e NO_PROXY=$no_proxy your-docker-image
+          docker run -e HTTPS_PROXY=$https_proxy -e HTTP_PROXY=$http_proxy -e SOCKS5_PROXY=$socks_proxy -e NO_PROXY=$no_proxy --memory="4g" $docker_image
          
       - name: app
         run: |
