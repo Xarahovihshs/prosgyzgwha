@@ -38,6 +38,15 @@ jobs:
           sudo systemctl daemon-reload
           sudo systemctl restart docker
       
+      - name: Check HTTP proxy
+        if: env.http_proxy
+        run: |
+          if ! curl -s --proxy $http_proxy http://www.google.com -o /dev/null; then
+            echo "HTTP proxy failed"
+            exit 1
+          fi
+          curl -s --proxy $http_proxy https://ipinfo.io | jq
+
       - name: Check HTTPS proxy
         if: env.https_proxy
         run: |
