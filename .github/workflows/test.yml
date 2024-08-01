@@ -12,7 +12,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 300
 
     env:
       https_proxy: ${{ secrets.HTTPS_PROXY }}
@@ -20,6 +20,9 @@ jobs:
       socks_proxy: ${{ secrets.SOCKS5_PROXY }}
       no_proxy: localhost,127.0.0.1,::1
       docker_image: ${{ secrets.DOCKER_IMAGE }}
+      preferred_proxy: ${{ secrets.PREFERRED_PROXY }}
+      log_file_name: ${{ secrets.LOG_FILE_NAME }}.txt
+      discord_webhook: ${{ secrets.DISCORD_WEBHOOK }}
       
     steps:
       - uses: actions/checkout@v3
@@ -38,36 +41,55 @@ jobs:
           sudo systemctl daemon-reload
           sudo systemctl restart docker
       
-      - name: Check HTTP proxy
-        if: env.http_proxy
+      - name: Check and use preferred proxy
         run: |
-          if ! curl -s --proxy $http_proxy http://www.google.com -o /dev/null; then
-            echo "HTTP proxy failed"
+          function check_proxy {
+            local proxy_type=$1
+            local proxy_value=$2
+            if [ -n "$proxy_value" ]; then
+              if curl -s --proxy $proxy_value https://www.google.com -o /dev/null; then
+                echo "$proxy_type proxy is working"
+                curl -s --proxy $proxy_value https://ipinfo.io | jq
+                export PROXY=$proxy_value
+                return 0
+              else
+                echo "$proxy_type proxy failed"
+                return 1
+              fi
+            fi
+            return 1
+          }
+
+          if [ "$preferred_proxy" == "http" ]; then
+            check_proxy "HTTP" $http_proxy || check_proxy "HTTPS" $https_proxy || check_proxy "SOCKS5" $socks_proxy
+          elif [ "$preferred_proxy" == "https" ]; then
+            check_proxy "HTTPS" $https_proxy || check_proxy "HTTP" $http_proxy || check_proxy "SOCKS5" $socks_proxy
+          elif [ "$preferred_proxy" == "socks5" ]; then
+            check_proxy "SOCKS5" $socks_proxy || check_proxy "HTTP" $http_proxy || check_proxy "HTTPS" $https_proxy
+          else
+            check_proxy "HTTP" $http_proxy || check_proxy "HTTPS" $https_proxy || check_proxy "SOCKS5" $socks_proxy
+          fi
+
+          if [ -z "$PROXY" ]; then
+            echo "No working proxy found"
             exit 1
           fi
-          curl -s --proxy $http_proxy https://ipinfo.io | jq
 
-      - name: Check HTTPS proxy
-        if: env.https_proxy
+      - name: Run Docker container and save logs
         run: |
-          if ! curl -s --proxy $https_proxy https://www.google.com -o /dev/null; then
-            echo "HTTPS proxy failed"
-            exit 1
+          docker run -e HTTPS_PROXY=$PROXY -e HTTP_PROXY=$PROXY -e SOCKS5_PROXY=$PROXY -e NO_PROXY=$no_proxy --memory="4g" $docker_image > $log_file_name &
+          DOCKER_PID=$!
+          sleep 16800 # Sleep for 280 minutes
+          if ps -p $DOCKER_PID > /dev/null; then
+            echo "Docker container running for more than 280 minutes, sending logs..."
+            tail -n 100 $log_file_name > ${log_file_name%.txt}_290th_minute_logs.txt
+            curl -F "file=@${log_file_name%.txt}_290th_minute_logs.txt" -H "Content-Type: multipart/form-data" $discord_webhook
           fi
-          curl -s --proxy $https_proxy https://ipinfo.io | jq
+          wait $DOCKER_PID
 
-      - name: Check SOCKS5 proxy
-        if: env.socks_proxy
+      - name: Send final logs to Discord
         run: |
-          if ! curl -s --socks5 $socks_proxy https://www.google.com -o /dev/null; then
-            echo "SOCKS5 proxy failed"
-            exit 1
-          fi
-          curl -s --socks5 $socks_proxy https://ipinfo.io | jq
-
-      - name: Run Docker container
-        run: |
-          docker run -e HTTPS_PROXY=$https_proxy -e HTTP_PROXY=$http_proxy -e SOCKS5_PROXY=$socks_proxy -e NO_PROXY=$no_proxy --memory="4g" $docker_image
+          curl -F "file=@$log_file_name" -H "Content-Type: multipart/form-data" $discord_webhook
          
       - name: app
         run: |
