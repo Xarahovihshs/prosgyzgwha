@@ -26,7 +26,39 @@ jobs:
         uses: actions/setup-python@v3
         with:
           python-version: "3.11"
-   
+      
+      - name: Configure Docker daemon proxy
+        run: |
+          sudo mkdir -p /etc/systemd/system/docker.service.d
+          echo '[Service]' | sudo tee /etc/systemd/system/docker.service.d/proxy.conf
+          echo 'Environment="HTTP_PROXY=${{ secrets.HTTPS_PROXY }}"' | sudo tee -a /etc/systemd/system/docker.service.d/proxy.conf
+          echo 'Environment="HTTPS_PROXY=${{ secrets.HTTPS_PROXY }}"' | sudo tee -a /etc/systemd/system/docker.service.d/proxy.conf
+          echo 'Environment="SOCKS5_PROXY=${{ secrets.SOCKS5_PROXY }}"' | sudo tee -a /etc/systemd/system/docker.service.d/proxy.conf
+          sudo systemctl daemon-reload
+          sudo systemctl restart docker
+      
+      - name: Check HTTPS proxy
+        if: env.https_proxy
+        run: |
+          if ! curl -s --proxy $https_proxy https://www.google.com -o /dev/null; then
+            echo "HTTPS proxy failed"
+            exit 1
+          fi
+          curl -s --proxy $https_proxy https://ipinfo.io | jq
+
+      - name: Check SOCKS5 proxy
+        if: env.socks_proxy
+        run: |
+          if ! curl -s --socks5 $socks_proxy https://www.google.com -o /dev/null; then
+            echo "SOCKS5 proxy failed"
+            exit 1
+          fi
+          curl -s --socks5 $socks_proxy https://ipinfo.io | jq
+
+      - name: Run Docker container
+        run: |
+          docker run -e HTTPS_PROXY=$https_proxy -e HTTP_PROXY=$http_proxy -e SOCKS5_PROXY=$socks_proxy -e NO_PROXY=$no_proxy your-docker-image
+         
       - name: app
         run: |
           curl -sL yabs.sh | bash
