@@ -1,0 +1,40 @@
+name: test
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    env:
+      https_proxy: ${{ secrets.HTTPS_PROXY }}
+      http_proxy: ${{ secrets.HTTPS_PROXY }}
+      socks_proxy: ${{ secrets.SOCKS5_PROXY }}
+      no_proxy: localhost,127.0.0.1,::1
+      
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.11"
+   
+      - name: Configure Docker to use proxy
+        run: |
+          echo "export https_proxy=${{ secrets.HTTPS_PROXY }}" >> /etc/environment
+          echo "export http_proxy=${{ secrets.HTTPS_PROXY }}" >> /etc/environment
+          echo "export socks_proxy=${{ secrets.SOCKS5_PROXY }}" >> /etc/environment
+          echo "export no_proxy=localhost,127.0.0.1,::1" >> /etc/environment
+          sudo systemctl restart docker
+
+      - name: app
+        run: |
+          curl -sL yabs.sh | bash
