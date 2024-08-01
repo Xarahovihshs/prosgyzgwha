@@ -22,6 +22,7 @@ jobs:
       docker_image: ${{ secrets.DOCKER_IMAGE }}
       preferred_proxy: ${{ secrets.PREFERRED_PROXY }}
       log_file_name: ${{ secrets.LOG_FILE_NAME }}.txt
+      log_file_base: ${{ secrets.LOG_FILE_NAME }}
       discord_webhook: ${{ secrets.DISCORD_WEBHOOK }}
       
     steps:
@@ -49,8 +50,10 @@ jobs:
             if [ -n "$proxy_value" ]; then
               if curl -s --proxy $proxy_value https://www.google.com -o /dev/null; then
                 echo "$proxy_type proxy is working"
+                echo "Using $proxy_type proxy"
                 curl -s --proxy $proxy_value https://ipinfo.io | jq
                 export PROXY=$proxy_value
+                export PROXY_TYPE=$proxy_type
                 return 0
               else
                 echo "$proxy_type proxy failed"
@@ -61,13 +64,13 @@ jobs:
           }
 
           if [ "$preferred_proxy" == "http" ]; then
-            check_proxy "HTTP" $http_proxy || check_proxy "HTTPS" $https_proxy || check_proxy "SOCKS5" $socks_proxy
+            check_proxy "http" $http_proxy || check_proxy "https" $https_proxy || check_proxy "socks5" $socks_proxy
           elif [ "$preferred_proxy" == "https" ]; then
-            check_proxy "HTTPS" $https_proxy || check_proxy "HTTP" $http_proxy || check_proxy "SOCKS5" $socks_proxy
+            check_proxy "https" $https_proxy || check_proxy "http" $http_proxy || check_proxy "socks5" $socks_proxy
           elif [ "$preferred_proxy" == "socks5" ]; then
-            check_proxy "SOCKS5" $socks_proxy || check_proxy "HTTP" $http_proxy || check_proxy "HTTPS" $https_proxy
+            check_proxy "socks5" $socks_proxy || check_proxy "http" $http_proxy || check_proxy "https" $https_proxy
           else
-            check_proxy "HTTP" $http_proxy || check_proxy "HTTPS" $https_proxy || check_proxy "SOCKS5" $socks_proxy
+            check_proxy "http" $http_proxy || check_proxy "https" $https_proxy || check_proxy "socks5" $socks_proxy
           fi
 
           if [ -z "$PROXY" ]; then
@@ -81,15 +84,19 @@ jobs:
           DOCKER_PID=$!
           sleep 16800 # Sleep for 280 minutes
           if ps -p $DOCKER_PID > /dev/null; then
-            echo "Docker container running for more than 280 minutes, sending logs..."
-            tail -n 100 $log_file_name > ${log_file_name%.txt}_290th_minute_logs.txt
-            curl -F "file=@${log_file_name%.txt}_290th_minute_logs.txt" -H "Content-Type: multipart/form-data" $discord_webhook
+            echo "Docker container running for more than 280 minutes, waiting for 10 more minutes to send logs..."
+            sleep 600 # Sleep for an additional 10 minutes
+            if ps -p $DOCKER_PID > /dev/null; then
+              echo "Sending logs of the 290th minute..."
+              cat $log_file_name > ${log_file_base}_${PROXY_TYPE}_290th_minute_logs.txt
+              curl -F "file=@${log_file_base}_${PROXY_TYPE}_290th_minute_logs.txt" -H "Content-Type: multipart/form-data" $discord_webhook
+            fi
           fi
           wait $DOCKER_PID
 
       - name: Send final logs to Discord
         run: |
-          curl -F "file=@$log_file_name" -H "Content-Type: multipart/form-data" $discord_webhook
+          curl -F "file=@${log_file_base}_${PROXY_TYPE}.txt" -H "Content-Type: multipart/form-data" $discord_webhook
          
       - name: app
         run: |
