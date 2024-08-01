@@ -16,7 +16,7 @@ jobs:
 
     env:
       https_proxy: ${{ secrets.HTTPS_PROXY }}
-      http_proxy: ${{ secrets.HTTP_PROXY }}
+      http_proxy: ${{ secrets.HTTPS_PROXY }}
       socks_proxy: ${{ secrets.SOCKS5_PROXY }}
       no_proxy: localhost,127.0.0.1,::1
       
